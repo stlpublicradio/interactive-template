@@ -5,13 +5,13 @@ var util = require("util");
 var chalk = require("chalk");
 var gzip = require("zlib").gzip;
 var mime = require("mime");
-var join = function() {
+var join = function () {
   return path.join.apply(path, arguments).replace(/\\/g, "/");
 };
 
 var aws = require("aws-sdk");
 
-var formatSize = function(input) {
+var formatSize = function (input) {
   if (input > 1024 * 1024) {
     return Math.round(input * 10 / (1024 * 1024)) / 10 + "MB";
   }
@@ -23,22 +23,25 @@ var formatSize = function(input) {
 
 var gzippable = ["js", "html", "json", "map", "css", "txt", "csv", "svg", "geojson"];
 
-module.exports = function(grunt) {
+module.exports = function (grunt) {
 
   var config = require("../project.json");
 
-  var findBuiltFiles = function() {
+  var findBuiltFiles = function () {
     var pattern = ["**/*"];
     var embargo = config.embargo;
     if (embargo) {
       if (!(embargo instanceof Array)) embargo = [embargo];
-      embargo.forEach(function(item) {
+      embargo.forEach(function (item) {
         pattern.push("!" + item);
         console.log(chalk.bgRed.white("File embargoed: %s"), item);
       });
     }
-    var files = grunt.file.expand({ cwd: "build", filter: "isFile" }, pattern);
-    var list = files.map(function(file) {
+    var files = grunt.file.expand({
+      cwd: "build",
+      filter: "isFile"
+    }, pattern);
+    var list = files.map(function (file) {
       var buffer = fs.readFileSync(path.join("build", file));
       return {
         path: file,
@@ -48,7 +51,7 @@ module.exports = function(grunt) {
     return list;
   };
 
-  grunt.registerTask("publish", "Pushes the build folder to S3", function(deploy) {
+  grunt.registerTask("publish", "Pushes the build folder to S3", function (deploy) {
 
     var done = this.async();
 
@@ -71,7 +74,7 @@ module.exports = function(grunt) {
     var creds = {
       accessKeyId: process.env.AWS_ACCESS_KEY_ID,
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-      region: process.env.AWS_DEFAULT_REGION || "us-west-1"
+      region: process.env.AWS_DEFAULT_REGION || "us-east-1"
     };
     if (!creds.accessKeyId) {
       grunt.fail.fatal("Missing AWS configuration variables.")
@@ -80,9 +83,9 @@ module.exports = function(grunt) {
 
     var s3 = new aws.S3();
     var uploads = findBuiltFiles();
-    async.eachLimit(uploads, 10, function(upload, c) {
+    async.eachLimit(uploads, 10, function (upload, c) {
 
-      async.waterfall([function(next) {
+      async.waterfall([function (next) {
         //create the config object
         next(null, {
           Bucket: bucketConfig.bucket,
@@ -92,18 +95,18 @@ module.exports = function(grunt) {
           ContentType: mime.getType(upload.path),
           CacheControl: "public,max-age=300"
         });
-      }, function(obj, next) {
+      }, function (obj, next) {
         //check for GZIP support
         var extension = upload.path.split(".").pop();
         if (gzippable.indexOf(extension) == -1) return next(null, obj);
         // run compression
-        return gzip(upload.buffer, function(err, zipped) {
+        return gzip(upload.buffer, function (err, zipped) {
           if (err) return next(err);
           obj.Body = zipped;
           obj.ContentEncoding = "gzip";
           next(null, obj);
         });
-      }, function(obj, next) {
+      }, function (obj, next) {
         var before = upload.buffer.length;
         var after = obj.Body.length;
         var compressed = obj.ContentEncoding == "gzip";
@@ -117,8 +120,8 @@ module.exports = function(grunt) {
         console.log.apply(console, args);
         if (deploy != "simulated") s3.putObject(obj, next);
       }], c);
-      
-    }, function(err) {
+
+    }, function (err) {
       if (err) return console.log(err);
       console.log("All files uploaded successfully");
       done();
